@@ -1,0 +1,55 @@
+#!/bin/bash
+# Fleet node bootstrap.
+# Runs PHP ${php_version} as a pinned Docker image (Apache + mod_php) serving a
+# benign demo app. The app prints the running PHP version so the version can be
+# visually confirmed before and after patching.
+set -euxo pipefail
+export DEBIAN_FRONTEND=noninteractive
+
+apt-get update -y
+apt-get install -y docker.io
+systemctl enable --now docker
+
+mkdir -p /opt/webapp
+
+cat > /opt/webapp/index.php <<'PHP'
+<?php
+header('Content-Type: text/html; charset=utf-8');
+$ver  = phpversion();
+$host = gethostname();
+?>
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Fleet node</title>
+<style>
+  body{font-family:system-ui,sans-serif;background:#0f172a;color:#e2e8f0;
+       display:flex;min-height:100vh;align-items:center;justify-content:center;margin:0}
+  .card{background:#1e293b;padding:2.5rem 3rem;border-radius:16px;
+        box-shadow:0 10px 40px rgba(0,0,0,.4);text-align:center}
+  .ver{font-size:2rem;font-weight:700;margin:.5rem 0}
+  .host{color:#94a3b8;font-size:.9rem;letter-spacing:.05em}
+</style></head>
+<body><div class="card">
+  <div class="host"><?= htmlspecialchars($host) ?></div>
+  <div>Running PHP</div>
+  <div class="ver"><?= htmlspecialchars($ver) ?></div>
+</div></body></html>
+PHP
+
+# Lightweight JSON health endpoint used by the fleet controller.
+cat > /opt/webapp/health.php <<'PHP'
+<?php
+header('Content-Type: application/json');
+echo json_encode([
+  "status" => "ok",
+  "php"    => phpversion(),
+  "host"   => gethostname(),
+]);
+PHP
+
+docker run -d --name webserver --restart unless-stopped \
+  -p 80:80 -v /opt/webapp:/var/www/html \
+  php:${php_version}-apache
+
+# Marker file: the PHP version this node booted with.
+echo "${php_version}" > /opt/php_deployed_version.txt

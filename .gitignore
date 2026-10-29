@@ -1,0 +1,52 @@
+# ============================================================
+#  SECURITY — never commit secrets or state. Review before push.
+# ============================================================
+
+# SSH private keys (any)
+*.pem
+*.key
+*_rsa
+*_ed25519
+
+# Terraform state — contains the private key, emails, IPs, account id
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+crash.log
+crash.*.log
+.terraform/
+.terraform.tfstate.lock.info
+terraform/.build/
+
+# Your real variable values (email, IP range). Publish the .example instead.
+terraform.tfvars
+*.auto.tfvars
+
+# Management token secret
+deploy/.mgmt_token
+deploy/*.token
+
+# Operator audit log (may contain instance ids / IPs)
+logs/
+actions.jsonl
+
+# Lambda invoke / ad-hoc outputs
+response.json
+*.out
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
+
+# Streamlit local secrets (keep config.toml; ignore any secrets file)
+.streamlit/secrets.toml
