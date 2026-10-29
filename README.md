@@ -1,145 +1,74 @@
 # php2shell Incident-Response Lab
 
-A hands-on **cloud incident-response** project built on AWS. It simulates a real
-company fleet reacting to the **php2shell** emergency (CVE-2026-109618 /
-CVE-2026-109619 — unauthenticated RCE in PHP, disclosed 21 Oct 2026) and
-demonstrates the full response lifecycle **detect → contain → remediate →
-verify**, with the containment step fully **automated**.
-
-Everything is **Infrastructure as Code** (Terraform) and runs on a single-digit
-dollar budget using AWS free-tier credits.
+A hands-on AWS **cloud incident-response** project. It simulates a small company's
+server fleet during the real **php2shell** emergency (CVE-2026-109618 /
+CVE-2026-109619 — unauthenticated RCE in PHP) and runs the full response
+lifecycle — **detect → contain → remediate → verify** — with containment
+**fully automated**.
 
 ![Architecture](docs/architecture.png)
 
----
+## What it does
 
-## The scenario
-
-On 21 October 2026, the PHP project shipped emergency fixes (8.5.12 / 8.4.27 /
-8.3.36 / **8.2.35**) for two critical flaws collectively called **php2shell**,
-after the FBI/CISA urged organisations to *inventory PHP, prioritise
-internet-facing systems, and patch*. This lab plays the role of the security
-engineer responsible for a small company's fleet during that event.
-
-| CVE | Type | Baseline (fixed in) |
-|-----|------|---------------------|
-| CVE-2026-109618 | OOM memory corruption → RCE | 8.2.35 (for the 8.2 branch) |
-| CVE-2026-109619 | stale global state → RCE | 8.2.35 (for the 8.2 branch) |
-
-> **Scope & ethics.** This lab proves exposure by **authoritative version
-> comparison**, not by running exploit code. There is no weaponised PoC in this
-> repository, and automatic exploitation is never wired into the detector or the
-> response Lambda. See [`proof/README.md`](proof/README.md).
-
----
+- **Detects** vulnerable PHP versions across the fleet from an authenticated
+  management endpoint, and classifies each node AFFECTED / PATCHED / UNKNOWN.
+- **Contains automatically** — a scheduled Lambda isolates an affected node
+  (moves it to a no-inbound quarantine security group), writes evidence to
+  encrypted S3, and emails an alert — no human needed.
+- **Remediates** — upgrades the node to the patched PHP build and flips it healthy.
+- **Verifies** — the same tool that proved exposure proves the fix.
+- **Blocks attacks at the edge** — an AWS WAF in front of an ALB drops the
+  php2shell request pattern before it reaches PHP, plus AWS managed rules and a
+  per-IP rate limit.
+- **Hardens the apps** — hides PHP/Apache version info, generic error pages, and
+  keeps the real version behind a token-only endpoint.
+- **Shows everything** — a one-command operator CLI and a protected Streamlit
+  console for live fleet state, incidents, evidence, and response controls.
 
 ## The fleet
 
-Three `t3.micro` EC2 nodes, each running PHP as a **pinned Docker image**
-(`php:<ver>-apache` = Apache + mod_php, the most exposed configuration in the
-advisory). Each carries `PHPVersion` / `Status` tags that are the signal the
-automation watches.
+Three `t3.micro` nodes running NovaEdge (a fictional company): a corporate site,
+a customer portal, and a service-status page — each a real PHP app on fictional
+data.
 
-| Node | Role | PHP | State |
-|------|------|-----|-------|
-| `web-01` | **NovaEdge** corporate website | 8.2.20 → 8.2.35 | vulnerable → remediated |
-| `web-02` | **NovaEdge** customer portal (login, tickets, requests) | 8.2.35 | healthy |
-| `web-03` | **NovaEdge** service-status page | 8.2.35 | healthy |
+| Node | Role | PHP |
+|------|------|-----|
+| `web-01` | Corporate website | 8.2.20 → 8.2.35 (the vulnerable one) |
+| `web-02` | Customer portal (login, tickets) | 8.2.35 |
+| `web-03` | Service-status page | 8.2.35 |
 
-All three are real, functional PHP applications sharing one corporate brand, with
-fictional data only. Access is locked to the operator's own IP; the quarantine
-security group has **no inbound** and is used for isolation.
+## Screenshots
 
----
+**Incident-response console** — live fleet state, automated response, evidence, controls
+![Dashboard](docs/screenshots/dashboard.png)
 
-## Incident-response workflow
+**Automated containment** — a node is isolated and verified, with an alert emailed, no human in the loop
+![Auto isolation alert](docs/screenshots/auto-isolation-email.jpg)
 
-Each response action is **one command** via `fleet_control.py` (a node or the
-whole fleet), and the containment layer also runs automatically.
+**Edge WAF blocks the php2shell attack** — the malicious request is dropped (403) before it reaches PHP
+![WAF blocks attack](docs/screenshots/waf-blocks-attack.png)
 
-1. **Detect** — read each node's real PHP version from an **authenticated**
-   management endpoint and compare to the official patched baseline.
-2. **Mitigate** *(layer 1)* — stop-gap request filtering (buy time).
-3. **Isolate** *(layer 2)* — move the node onto the quarantine SG: network-cut,
-   host preserved for forensics.
-4. **Remediate** *(layer 3)* — rebuild the container on the patched PHP image and
-   flip the tags to healthy.
-5. **Verify** — re-run detection; the same tool that proved exposure proves the
-   fix.
+**The fleet** — corporate site, customer portal, service-status page
 
-### Demonstrated end-to-end (real run)
+| | | |
+|---|---|---|
+| ![Corporate](docs/screenshots/corporate-site.png) | ![Portal](docs/screenshots/customer-portal.png) | ![Status](docs/screenshots/status-page.png) |
 
-```
-detect   →  web-01  PHP 8.2.20  AFFECTED
-automated response fires (EventBridge → Lambda):
-         →  web-01 isolated, verified, evidence written to S3, email alert sent
-remediate→  web-01 patched to 8.2.35
-verify   →  web-01/02/03 all OK — "Verification PASSED"
-```
+## Tech stack
 
----
+AWS (EC2, Lambda, EventBridge, SNS, S3, CloudWatch, ALB, AWS WAF, IAM) ·
+Terraform · Docker · Python (boto3) · Streamlit · PHP/Apache
 
-## Automated incident response (SOAR)
-
-`EventBridge (every 5 min) → Lambda → { isolate, SNS alert, S3 evidence,
-CloudWatch logs }`, on a **least-privilege IAM role** scoped by the `Fleet` tag.
-
-The Lambda classifies each node as **AFFECTED / PATCHED / UNKNOWN**, never infers
-compromise from a vulnerable version alone, de-duplicates already-isolated nodes,
-collects evidence **before** containment, isolates the node, **verifies** the
-resulting security-group membership, and only then reports the real result.
-Auto-containment is configurable (`auto_contain`).
-
----
-
-## Hardening (information disclosure)
-
-- `expose_php = Off`, `ServerTokens Prod`, `ServerSignature Off`
-- generic public error pages; no PHP stack traces in production
-- sensitive files (`.ini`, `.log`, `.pem`, …) blocked at the web server
-- the real PHP version is served only from a **token-authenticated**
-  `/mgmt/version.php`, kept separate from the public (version-free) health check
-
----
-
-## Quick start
-
-```bash
-cd terraform
-terraform init
-terraform apply                      # builds the fleet + automation
-cd ..
-python deploy_sites.py               # deploy the 3 websites + hardening
-python fleet_control.py status       # see the fleet
-```
-
-Settings live in `terraform/terraform.tfvars` (allowed IP range, alert email,
-automation toggles). Confirm the SNS subscription email after the first apply.
-
-## Cost & teardown
-
-`t3.micro` + short sessions ≈ a few dollars, covered by free-tier credits. Stop
-between sessions and destroy when done:
-
-```bash
-python fleet_control.py stop         # pause compute cost
-terraform destroy                    # remove everything
-```
-
-## Project layout
+## Layout
 
 ```
-terraform/        IaC: fleet, security groups, IAM, Lambda, EventBridge, SNS, S3
-lambda/           detector_responder.py — the automated responder
-sites/            web-01/02/03 PHP apps + shared theme, hardening, mgmt endpoint
-fleet_control.py  operator CLI (status/detect/mitigate/isolate/patch/hunt/verify)
-deploy_sites.py   push apps + hardening to the fleet over SSH
-proof/            exposure-verification methodology (no exploit code)
-docs/             architecture diagram and documentation
+terraform/   IaC: fleet, security groups, IAM, Lambda, EventBridge, SNS, S3, ALB + WAF
+lambda/      the automated detector/responder
+sites/       the three PHP apps + hardening + mgmt endpoint
+fleet_control.py  operator CLI (status/detect/isolate/patch/verify/…)
+dashboard.py      Streamlit incident-response console
+proof/       exposure-verification evidence (no exploit code)
 ```
 
-## Sources
-
-- PHP security advisory, 21 Oct 2026 — patched versions 8.5.12 / 8.4.27 / 8.3.36 / 8.2.35
-- FBI/CISA guidance: inventory PHP, prioritise internet-facing systems, patch
-- CERT-EU Advisory 2026-018; vendor write-ups (Sophos, Fortinet, Wiz, watchTowr, Recorded Future)
+> Scope: exposure is proven by authoritative **version comparison**, not exploit
+> code. There is no weaponised PoC in this repository.
