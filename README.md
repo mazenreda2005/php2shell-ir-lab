@@ -24,6 +24,8 @@ lifecycle — **detect → contain → remediate → verify** — with containme
   keeps the real version behind a token-only endpoint.
 - **Shows everything** — a one-command operator CLI and a protected Streamlit
   console for live fleet state, incidents, evidence, and response controls.
+- **Costs pennies** — every response action, and starting or stopping the whole
+  fleet, is a single command, so it only runs while you're using it.
 
 ## The fleet
 
