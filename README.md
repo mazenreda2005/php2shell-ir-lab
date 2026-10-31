@@ -29,8 +29,6 @@ A hands-on cloud-security lab that simulates a company's web-server fleet during
 - Confirmed exposure by **authoritative version comparison** against the official php2shell patched baselines — not by running an exploit.
 - `web-01` boots on PHP **8.2.20** → below 8.2.35 → **AFFECTED**.
 
-<img src="docs/screenshots/vulnerable-node.png" width="420">
-
 ### 3. Automated Detection & Response (SOAR)
 - A scheduled **EventBridge → Lambda** pipeline classifies each node AFFECTED / PATCHED / UNKNOWN.
 - On an affected node it **isolates automatically** (moves it to the quarantine group), writes a finding to **encrypted S3**, and sends an **SNS email alert** — with least-privilege IAM and no human in the loop.
