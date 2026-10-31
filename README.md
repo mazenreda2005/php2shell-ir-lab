@@ -50,6 +50,9 @@ data.
 **Edge WAF blocks the php2shell attack** — the malicious request is dropped (403) before it reaches PHP
 ![WAF blocks attack](docs/screenshots/waf-blocks-attack.png)
 
+**One-click response controls** — isolate, restore, or stop/start the whole fleet (with a typed confirmation for destructive actions)
+![Fleet controls](docs/screenshots/fleet-controls.png)
+
 **The fleet** — corporate site, customer portal, service-status page
 
 | | | |
