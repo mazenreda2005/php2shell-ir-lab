@@ -25,42 +25,38 @@ A hands-on cloud-security lab that simulates a company's web-server fleet during
 - Each node runs PHP as a pinned Docker image (`php:<version>-apache`); access locked to the operator IP.
 - A no-inbound **quarantine** security group is pre-built for isolation.
 
-![Terraform apply](docs/screenshots/terraform-apply.png)
-
 ### 2. Exposure Verification — Proof (no exploit code)
 - Confirmed exposure by **authoritative version comparison** against the official php2shell patched baselines — not by running an exploit.
 - `web-01` boots on PHP **8.2.20** → below 8.2.35 → **AFFECTED**.
 
-![Vulnerable node running PHP 8.2.20](docs/screenshots/vulnerable-node.png)
+<img src="docs/screenshots/vulnerable-node.png" width="420">
 
 ### 3. Automated Detection & Response (SOAR)
 - A scheduled **EventBridge → Lambda** pipeline classifies each node AFFECTED / PATCHED / UNKNOWN.
 - On an affected node it **isolates automatically** (moves it to the quarantine group), writes a finding to **encrypted S3**, and sends an **SNS email alert** — with least-privilege IAM and no human in the loop.
 
-![Automated isolation alert](docs/screenshots/auto-isolation-email.jpg)
-![Incident-response console](docs/screenshots/dashboard.png)
+<img src="docs/screenshots/auto-isolation-email.jpg" width="360">
+<img src="docs/screenshots/dashboard.png" width="620">
 
 ### 4. Remediation & Verification
 - Upgraded the vulnerable node to the patched PHP build and flipped its tags healthy.
 - Re-ran detection — the same tool that proved exposure proves the fix: **Verification PASSED**.
 - One-command operator controls (isolate / restore / patch / stop / start) via CLI and dashboard.
 
-![One-click response controls](docs/screenshots/fleet-controls.png)
+<img src="docs/screenshots/fleet-controls.png" width="620">
 
 ### 5. Edge WAF Hardening
 - Placed an **ALB + AWS WAF** in front of the fleet.
 - A WAF rule drops the php2shell request pattern **before it reaches PHP** (verified: **403 Forbidden**), alongside AWS managed rule groups and a per-IP rate limit.
 
-![Edge WAF blocks the attack](docs/screenshots/waf-blocks-attack.png)
+<img src="docs/screenshots/waf-blocks-attack.png" width="620">
 
 ### 6. Application Hardening (Information Disclosure)
 - `expose_php = Off`, `ServerTokens Prod`, `ServerSignature Off`, generic error pages.
 - The real PHP version is served only from a token-authenticated management endpoint — kept out of all public pages.
 - Three working PHP apps on fictional data (corporate site, customer portal, status page).
 
-![Corporate site](docs/screenshots/corporate-site.png)
-![Customer portal](docs/screenshots/customer-portal.png)
-![Service-status page](docs/screenshots/status-page.png)
+<img src="docs/screenshots/corporate-site.png" width="270"> <img src="docs/screenshots/customer-portal.png" width="270"> <img src="docs/screenshots/status-page.png" width="270">
 
 ---
 
